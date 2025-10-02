@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2563eb">
+<title>Kids Screen‑Time Tracker — PWA + Reward Jar (Fixed)</title>
+<style>
+:root{ --bg:#f7f7fb; --card:#fff; --ink:#0f172a; --muted:#6b7280; --line:#e5e7eb; --brand:#2563eb; --ok:#10b981; --flash:#fde68a; }
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Ubuntu,sans-serif;background:var(--bg);color:var(--ink)}
+.container{max-width:1100px;margin:0 auto;padding:18px}
+h1{margin:0 0 8px 0;font-weight:900;letter-spacing:.2px}
+.header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#94a3b8;color:#fff;font-weight:700;font-size:12px}
+button{border:none;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;background:var(--brand);color:#fff}
+button.outline{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-top:12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.tab{border:1px solid var(--line);background:#fff;color:#0f172a;padding:8px 12px;border-radius:10px;cursor:pointer}
+.tab.active{background:#eef2ff;border-color:#c7d2fe}
+.panel{display:none}
+.panel.active{display:block}
+.grid-3{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:900px){.grid-3{grid-template-columns:1fr 1fr 1fr}}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px}
+input,select,textarea{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px}
+.timer{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;margin:10px 0}
+.timer .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.time{font:800 20px ui-monospace,Consolas,monospace;letter-spacing:1px}
+.small{color:var(--muted);font-size:12px}
+.week{margin-top:10px;border:1px dashed var(--line);border-radius:12px;padding:10px}
+.dayrow{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin:8px 0}
+.progress{height:10px;background:#eef2ff;border-radius:999px;overflow:hidden}
+.bar{height:100%;background:linear-gradient(90deg,#60a5fa,#34d399);width:0%}
+.controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.controls input.used{width:80px}
+.hint{color:var(--muted);font-size:12px}
+.flash{animation:flashbg .9s ease-in-out 2}
+@keyframes flashbg{0%{background:#fff}50%{background:var(--flash)}100%{background:#fff}}
+.limitnote{font-size:12px;color:#334155;margin-top:4px}
+.badge-bonus{display:inline-block;padding:2px 8px;border-radius:999px;background:#fde68a;color:#92400e;font-weight:700;font-size:12px}
+footer{margin:18px 0;color:#64748b;font-size:12px}
+/* Overlay */
+#overlay{position:fixed;inset:0;background:rgba(15,23,42,.75);display:none;align-items:center;justify-content:center;z-index:9999}
+#overlay .box{background:#fff;border-radius:16px;padding:20px;max-width:420px;width:92%;text-align:center;box-shadow:0 12px 28px rgba(0,0,0,.2)}
+#overlay h3{margin:0 0 8px 0;font-size:22px}
+#overlay p{margin:0 0 12px 0;color:#374151}
+#overlay button{padding:10px 14px;border-radius:12px}
+/* Reward Jar */
+.jar-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+@media(max-width:900px){ .jar-row{grid-template-columns:1fr} }
+.jar-card{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
+.jar-balance{font-weight:800}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Kids Screen‑Time Tracker — PWA + Reward Jar</h1>
+    <span id="selftest" class="badge">JS not loaded</span>
+    <button class="outline" id="btnTest">Test (<span id="clicks">0</span>)</button>
+    <div style="flex:1"></div>
+    <button class="outline" id="btnInstall">Install app</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="king">King (3)</button>
+    <button class="tab" data-tab="ezbro">Ezbro (7)</button>
+    <button class="tab" data-tab="ani">Ani (15)</button>
+    <button class="tab" data-tab="rewards">Rewards</button>
+    <div style="flex:1"></div>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <div class="card panel active" id="king"></div>
+  <div class="card panel" id="ezbro"></div>
+  <div class="card panel" id="ani"></div>
+
+  <div class="card panel" id="rewards">
+    <h2>Reward Jar</h2>
+    <p class="hint">Give points for chores / great behavior. 1 point = X minutes below.</p>
+    <div class="grid-3">
+      <label>Points → Minutes<input id="pointsRate" type="number" value="5" min="1" step="1"></label>
+      <label>Total Bonuses This Week (mins)<input id="totalBonus" type="text" value="0" readonly></label>
+      <div></div>
+    </div>
+    <div class="jar-row" id="jarCards"></div>
+    <div class="card" style="margin-top:10px">
+      <h3>Add Points</h3>
+      <div class="grid-3">
+        <label>Kid<select id="jarKid"></select></label>
+        <label>Points<input id="jarPoints" type="number" value="1" min="1" step="1"></label>
+        <label>Note<input id="jarNote" type="text" placeholder="e.g., cleaned room"></label>
+      </div>
+      <div style="margin-top:8px"><button id="addPoints">Add to Jar</button></div>
+    </div>
+  </div>
+
+  <div class="card panel" id="settings">
+    <h2>Settings</h2>
+    <div class="grid-3">
+      <label>Alarm Sound
+        <select id="alarmSound"><option value="fart">Fart</option><option value="boop">Boop</option><option value="bell">Bell</option><option value="kazoo">Kazoo-ish</option></select>
+      </label>
+      <label>Volume<input id="alarmVol" type="range" min="0" max="100" value="80" step="1"></label>
+      <label class="row" style="align-items:center;margin-top:24px"><input type="checkbox" id="mute"> Mute</label>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <label class="row" style="align-items:center"><input type="checkbox" id="requirePin"> Require PIN</label>
+      <label><input id="pin1" type="password" placeholder="Set PIN (4+ digits)"></label>
+      <label><input id="pin2" type="password" placeholder="Confirm PIN"></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="savePin">Save PIN</button>
+      <button id="testSound" class="outline">▶ Test Sound</button>
+      <button id="resetWeek" class="outline">Reset Week</button>
+      <button id="saveAll" class="outline">Save</button>
+      <button id="loadAll" class="outline">Load</button>
+    </div>
+    <p class="hint">Save/Load uses your browser’s local storage on this device.</p>
+  </div>
+</div>
+
+<div id="overlay" role="dialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.75);align-items:center;justify-content:center;z-index:9999">
+  <div class="box" style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:92%;text-align:center;box-shadow:0 12px 28px rgba(0,0,0,.2)">
+    <h3 id="ov-title" style="margin:0 0 8px 0;font-size:22px">Time’s up!</h3>
+    <p id="ov-text" style="margin:0 0 12px 0;color:#374151">The timer reached today’s limit.</p>
+    <button id="ov-ok" style="padding:10px 14px;border-radius:12px">OK</button>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; document.getElementById('btnInstall').disabled=false; });
+document.getElementById('btnInstall').onclick = async()=>{ if(!deferredPrompt){ alert('If install isn’t offered, try HTTPS.'); return; } deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; };
+
+(function(){
+  const $=(s)=>document.querySelector(s);
+  const $$=(s)=>Array.from(document.querySelectorAll(s));
+  const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  function todayName(){ return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()]; }
+
+  // Self-test
+  let clicks=0; $("#selftest").textContent="JS loaded ✓"; $("#selftest").style.background="#10b981";
+  $("#btnTest").onclick=()=>{ clicks++; $("#clicks").textContent=String(clicks); };
+
+  // Tabs
+  $$(".tab").forEach(btn=> btn.addEventListener("click", ()=>{ $$(".tab").forEach(b=>b.classList.remove("active")); $$(".panel").forEach(p=>p.classList.remove("active")); btn.classList.add("active"); document.getElementById(btn.dataset.tab).classList.add("active"); }));
+
+  // State
+  const state = {
+    settings:{ alarm:"fart", volume:0.8, mute:false, requirePin:false, pinHash:"", rate:5 },
+    kids:{
+      king:{ name:"King", wd:60, we:120, days: buildWeek(), lock:false, jar:0 },
+      ezbro:{ name:"Ezbro", wd:60, we:120, days: buildWeek(), lock:false, jar:0 },
+      ani:{ name:"Ani", wd:150, we:180, days: buildWeek(), lock:false, jar:0 }
+    },
+    history:[]
+  };
+  function buildWeek(){ const o={}; days.forEach(d=> o[d]={used:0, bonus:0}); return o; }
+
+  // Build kids
+  buildKid('king','k3',3); buildKid('ezbro','k7',7); buildKid('ani','k15',15);
+
+  function buildKid(key, id, age){
+    const kid=state.kids[key], panel=document.getElementById(key);
+    panel.innerHTML = `
+      <h2>${kid.name} — ${age}</h2>
+      <div class="grid-3">
+        <label>Weekday Limit (min)<input id="${id}_wd" type="number" value="${kid.wd}" min="0" step="5"></label>
+        <label>Weekend Limit (min)<input id="${id}_we" type="number" value="${kid.we}" min="0" step="5"></label>
+        <label>Day<select id="${id}_day"></select></label>
+      </div>
+      <div class="timer" data-kid="${key}">
+        <div class="row">
+          <div class="time"><span class="hh">00</span>:<span class="mm">00</span>:<span class="ss">00</span></div>
+          <button class="start">Start</button>
+          <button class="pause outline">Pause</button>
+          <button class="reset outline">Reset</button>
+          <span style="flex:1"></span>
+          <span class="hint">Jar: <strong id="${id}_jar" class="jar-balance">${kid.jar}</strong> pts</span>
+        </div>
+        <div class="small">Adds minutes to selected day; auto‑stops at limit (+ bonus).</div>
+      </div>
+      <div class="week" id="${id}_week"></div>
+    `;
+    const sel=$("#"+id+"_day"); ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach(d=>{ const o=document.createElement('option'); o.value=d; o.textContent=d; sel.appendChild(o); }); sel.value = todayName()||"Mon";
+    $("#"+id+"_wd").oninput = e=> kid.wd = +e.target.value||0;
+    $("#"+id+"_we").oninput = e=> kid.we = +e.target.value||0;
+    buildTracker(id+"_week", key);
+    setupTimer(panel.querySelector(".timer"), key, "#"+id+"_day");
+  }
+
+  function buildTracker(containerId, kidKey){
+    const kid=state.kids[kidKey]; const el=document.getElementById(containerId); el.innerHTML="";
+    ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach(d=>{
+      const row=document.createElement('div'); row.className='dayrow'; row.innerHTML=`
+        <div class="name">${d}</div>
+        <div>
+          <div class="progress"><div class="bar" id="${kidKey}_${d}_bar" style="width:0%"></div></div>
+          <div class="limitnote">Limit: <span id="${kidKey}_${d}_base">${getBase(kid,d)}</span>m + Bonus <span class="badge-bonus" id="${kidKey}_${d}_bonus">${kid.days[d].bonus}</span>m</div>
+          <div class="controls" style="margin-top:6px">
+            <button class="minus5">-5</button><button class="plus5">+5</button><button class="plus10">+10</button>
+            <input class="used" id="${kidKey}_${d}_used" type="number" min="0" step="5" value="${kid.days[d].used}"> min
+            <button class="reset outline">Reset</button>
+            <span style="width:12px"></span>
+            <button class="bminus5 outline">Bonus -5</button><button class="bplus5 outline">Bonus +5</button><button class="breset outline">Bonus Reset</button>
+            <span style="width:12px"></span>
+            <button class="outline claim">Claim from Jar</button>
+          </div>
+        </div>`;
+      const used=row.querySelector('.used'); const bar=row.querySelector('.bar');
+      const baseEl=row.querySelector('#'+`${kidKey}_${d}_base`); const bonusEl=row.querySelector('#'+`${kidKey}_${d}_bonus`);
+      function limit(){ return getBase(state.kids[kidKey],d) + (state.kids[kidKey].days[d].bonus||0); }
+      function clamp(){ const L=limit(); let u=+used.value||0; if(L>0 && u>L){ u=L; used.value=u; } const pct=L>0?Math.min(100,Math.round(u/L*100)):0; bar.style.width=pct+'%'; bar.title=u+' / '+L+' min'; state.kids[kidKey].days[d].used=u; refreshTotals(); }
+      function meta(){ baseEl.textContent=getBase(state.kids[kidKey],d); bonusEl.textContent=state.kids[kidKey].days[d].bonus||0; }
+      function addBonus(x){ const b=Math.max(0,(state.kids[kidKey].days[d].bonus||0)+x); state.kids[kidKey].days[d].bonus=b; meta(); clamp(); flash(row); saveLocalThrottled(); }
+      clamp(); meta();
+      row.querySelector('.plus5').onclick=()=>{ used.value=(+used.value||0)+5; clamp(); flash(row); saveLocalThrottled(); };
+      row.querySelector('.plus10').onclick=()=>{ used.value=(+used.value||0)+10; clamp(); flash(row); saveLocalThrottled(); };
+      row.querySelector('.minus5').onclick=()=>{ used.value=Math.max(0,(+used.value||0)-5); clamp(); flash(row); saveLocalThrottled(); };
+      row.querySelector('.reset').onclick=()=>{ used.value=0; clamp(); flash(row); saveLocalThrottled(); };
+      used.oninput=()=>{ clamp(); saveLocalThrottled(); };
+      row.querySelector('.bplus5').onclick=()=> addBonus(+5);
+      row.querySelector('.bminus5').onclick=()=> addBonus(-5);
+      row.querySelector('.breset').onclick=()=>{ state.kids[kidKey].days[d].bonus=0; meta(); clamp(); flash(row); saveLocalThrottled(); };
+      row.querySelector('.claim').onclick=()=>{
+        const pts = Math.min(state.kids[kidKey].jar, 10);
+        if(pts<=0){ alert('Jar is empty.'); return; }
+        state.kids[kidKey].jar -= pts;
+        const mins = pts * (state.settings.rate||5);
+        state.kids[kidKey].days[d].bonus += mins;
+        meta(); clamp(); flash(row);
+        updateJarBadges(); refreshJarCards(false);
+        state.history.push({t:Date.now(), type:'claim', kid:kidKey, day:d, pts, mins});
+        saveLocal();
+      };
+      el.appendChild(row);
+    });
+  }
+  function getBase(kid,d){ return (d==='Sat'||d==='Sun')?kid.we:kid.wd; }
+  function flash(el){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+
+  // Timers (single setup only)
+  const timers=new Map();
+  function setupTimer(root, kidKey, daySelector){
+    const els={hh:root.querySelector('.hh'), mm:root.querySelector('.mm'), ss:root.querySelector('.ss'),
+               start:root.querySelector('.start'), pause:root.querySelector('.pause'), reset:root.querySelector('.reset'),
+               root, daySel:document.querySelector(daySelector)};
+    const t={sec:0,running:false,id:null,els}; timers.set(kidKey,t);
+    els.start.onclick=()=>{ const k=state.kids[kidKey]; if(state.settings.requirePin && k.lock){ if(!requestPin(()=>{})) return; k.lock=false; } startTimer(kidKey); };
+    els.pause.onclick=()=> pauseTimer(kidKey);
+    els.reset.onclick=()=> resetTimer(kidKey);
+    updateDisplay(t,0);
+  }
+  function startTimer(kidKey){
+    const t=timers.get(kidKey); if(!t||t.running) return; t.running=true; const kid=state.kids[kidKey]; kid.lock=false;
+    t.id=setInterval(()=>{ t.sec+=1; updateDisplay(t,t.sec);
+      if(t.sec%60===0){ const d=t.els.daySel.value||'Mon'; const base=(d==='Sat'||d==='Sun')?kid.we:kid.wd; const eff=base+(kid.days[d].bonus||0);
+        const used=document.getElementById(`${kidKey}_${d}_used`); let u=(+used.value||0)+1;
+        if(eff>0 && u>=eff){ u=eff; used.value=u; clampBar(kidKey,d,u,eff); kid.days[d].used=u; kid.lock=true; autoStop(t,kid.name); }
+        else { used.value=u; kid.days[d].used=u; clampBar(kidKey,d,u,eff); }
+        refreshTotals(); saveLocalThrottled();
+      } },1000);
+  }
+  function pauseTimer(kidKey){ const t=timers.get(kidKey); if(!t||!t.running) return; t.running=false; clearInterval(t.id); t.id=null; }
+  function resetTimer(kidKey){ const t=timers.get(kidKey); if(!t) return; if(t.id){clearInterval(t.id); t.id=null;} t.running=false; t.sec=0; updateDisplay(t,0); }
+  function autoStop(t,name){ t.running=false; clearInterval(t.id); t.id=null; flash(t.els.root); showOverlay(name||''); playAlarm(state.settings.alarm||'fart'); }
+  function updateDisplay(t,sec){ const h=String(Math.floor(sec/3600)).padStart(2,'0'); const m=String(Math.floor((sec%3600)/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); t.els.hh.textContent=h; t.els.mm.textContent=m; t.els.ss.textContent=s; }
+  function clampBar(kidKey,d,u,limit){ const bar=document.getElementById(`${kidKey}_${d}_bar`); const pct=limit>0?Math.min(100,Math.round(u/limit*100)):0; bar.style.width=pct+'%'; bar.title=u+' / '+limit+' min'; }
+
+  // Overlay
+  const ov=$("#overlay"); $("#ov-ok").onclick=()=>{ if(state.settings.requirePin && state.settings.pinHash){ if(!requestPin(()=>{})) return; } ov.style.display='none'; };
+  function showOverlay(name){ document.getElementById('ov-title').textContent = "Time’s up!"+(name?` — ${name}`:""); ov.style.display='flex'; }
+
+  // Rewards UI
+  function refreshTotals(){ const total=Object.values(state.kids).reduce((a,k)=> a + ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].reduce((m,d)=> m+(k.days[d].bonus||0),0), 0); document.getElementById('totalBonus').value=String(total); }
+  function updateJarBadges(){ ['k3_jar','k7_jar','k15_jar'].forEach((id,i)=>{ const kidKey=i===0?'king':i===1?'ezbro':'ani'; const el=document.getElementById(id); if(el) el.textContent=state.kids[kidKey].jar; }); }
+  function buildJarCards(){
+    const wrap=document.getElementById('jarCards'); wrap.innerHTML='';
+    Object.entries(state.kids).forEach(([key,kid])=>{
+      const card=document.createElement('div'); card.className='jar-card';
+      card.innerHTML = `
+        <h3>${kid.name}</h3>
+        <div>Balance: <span class="jar-balance" id="${key}_jar_balance">${kid.jar}</span> pts</div>
+        <div class="hint">1 point = <span id="${key}_rate">${state.settings.rate}</span> min</div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="outline add1">+1 pt</button>
+          <button class="outline add5">+5 pts</button>
+          <button class="outline spend1">-1 pt</button>
+          <button class="outline reset">Reset</button>
+        </div>`;
+      card.querySelector('.add1').onclick=()=>{ kid.jar+=1; state.history.push({t:Date.now(),type:'add',kid:key,pts:1}); refreshJarCards(true); };
+      card.querySelector('.add5').onclick=()=>{ kid.jar+=5; state.history.push({t:Date.now(),type:'add',kid:key,pts:5}); refreshJarCards(true); };
+      card.querySelector('.spend1').onclick=()=>{ kid.jar=Math.max(0,kid.jar-1); state.history.push({t:Date.now(),type:'spend',kid:key,pts:1}); refreshJarCards(true); };
+      card.querySelector('.reset').onclick=()=>{ kid.jar=0; state.history.push({t:Date.now(),type:'reset',kid:key}); refreshJarCards(true); };
+      wrap.appendChild(card);
+    });
+  }
+  function refreshJarCards(save){
+    Object.entries(state.kids).forEach(([key,kid])=>{
+      const el=document.getElementById(`${key}_jar_balance`); if(el) el.textContent=kid.jar;
+      const rateEl=document.getElementById(`${key}_rate`); if(rateEl) rateEl.textContent = state.settings.rate;
+    });
+    updateJarBadges();
+    if(save) saveLocal();
+  }
+
+  // Add points form
+  const kidSelect=document.getElementById('jarKid'); ['king','ezbro','ani'].forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=state.kids[k].name; kidSelect.appendChild(o); });
+  document.getElementById('addPoints').onclick=()=>{
+    const kidKey=kidSelect.value; const pts=Math.max(1,+document.getElementById('jarPoints').value||1); const note=document.getElementById('jarNote').value.trim();
+    state.kids[kidKey].jar += pts; state.history.push({t:Date.now(),type:'add',kid:kidKey,pts,note}); document.getElementById('jarNote').value=''; refreshJarCards(true);
+  };
+  document.getElementById('pointsRate').oninput=(e)=>{ state.settings.rate=Math.max(1,+e.target.value||5); refreshJarCards(true); };
+
+  // Settings
+  document.getElementById('alarmSound').onchange=e=> state.settings.alarm=e.target.value;
+  document.getElementById('alarmVol').oninput=e=> state.settings.volume=(+e.target.value)/100;
+  document.getElementById('mute').onchange=e=> state.settings.mute=e.target.checked;
+  document.getElementById('requirePin').onchange=e=> state.settings.requirePin=e.target.checked;
+  document.getElementById('savePin').onclick=()=>{ const p1=document.getElementById('pin1').value.trim(), p2=document.getElementById('pin2').value.trim(); if(!/^[0-9]{4,}$/.test(p1)) return alert('PIN must be at least 4 digits.'); if(p1!==p2) return alert('PINs do not match.'); state.settings.pinHash=simpleHash(p1); document.getElementById('pin1').value=''; document.getElementById('pin2').value=''; alert('PIN saved.'); };
+  document.getElementById('testSound').onclick=()=> playAlarm(state.settings.alarm||'fart');
+  document.getElementById('saveAll').onclick=saveLocal;
+  document.getElementById('loadAll').onclick=()=>{ loadLocal(); refreshAllUI(); };
+  document.getElementById('resetWeek').onclick=()=>{ Object.values(state.kids).forEach(k=> k.days=buildWeek()); refreshAllUI(); saveLocal(); };
+
+  function refreshAllUI(){ buildTracker('k3_week','king'); buildTracker('k7_week','ezbro'); buildTracker('k15_week','ani'); refreshTotals(); refreshJarCards(false); }
+
+  function saveLocal(){ try{ localStorage.setItem('kidsTimerState', JSON.stringify(state)); }catch(e){} }
+  let saveTimer=null; function saveLocalThrottled(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveLocal, 500); }
+  function loadLocal(){ try{ const raw=localStorage.getItem('kidsTimerState'); if(!raw) return; const s=JSON.parse(raw);
+    if(s && s.settings && s.kids){ Object.assign(state.settings,s.settings); ['king','ezbro','ani'].forEach(k=>{ if(s.kids[k]){ state.kids[k].wd=s.kids[k].wd; state.kids[k].we=s.kids[k].we; state.kids[k].days=s.kids[k].days||buildWeek(); state.kids[k].jar=s.kids[k].jar||0; }});
+      state.history=s.history||[]; document.getElementById('alarmSound').value=state.settings.alarm; document.getElementById('alarmVol').value=Math.round((state.settings.volume||0.8)*100); document.getElementById('mute').checked=!!state.settings.mute; document.getElementById('requirePin').checked=!!state.settings.requirePin; document.getElementById('pointsRate').value=state.settings.rate||5;
+    } }catch(e){} }
+  loadLocal(); buildJarCards(); refreshAllUI();
+
+  // Utils
+  function simpleHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))>>>0; } return String(h); }
+  function requestPin(ok){ const pin=prompt('Enter parent PIN'); if(pin==null) return false; if(simpleHash(pin)===state.settings.pinHash){ ok&&ok(); return true; } alert('Wrong PIN.'); return false; }
+  function playAlarm(kind){ try{ if(state.settings.mute) return; const ctx=new (window.AudioContext||window.webkitAudioContext)(); const master=ctx.createGain(); master.gain.value=Math.max(0,Math.min(1,state.settings.volume||0.8)); master.connect(ctx.destination);
+    if(kind==='fart'){ const dur=1.2, src=ctx.createBufferSource(), buf=ctx.createBuffer(1, ctx.sampleRate*dur, ctx.sampleRate); const data=buf.getChannelData(0); let b0=0,b1=0,b2=0;
+      for(let i=0;i<data.length;i++){ const w=Math.random()*2-1; b0=0.997*b0+w*0.05; b1=0.985*b1+w*0.1; b2=0.95*b2+w*0.2; const t=i/ctx.sampleRate; const env=t<0.08?t/0.08:(t>1.0?Math.max(0,1.2-t)/0.2:1); data[i]=(b0+b1+b2)*0.28*env; }
+      src.buffer=buf; const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=220; f.Q.value=0.9; const lfo=ctx.createOscillator(), g=ctx.createGain(); lfo.type='triangle'; lfo.frequency.value=7; g.gain.value=160; lfo.connect(g).connect(f.frequency);
+      src.connect(f).connect(master); src.start(); lfo.start(); setTimeout(()=>{ try{src.stop(); lfo.stop(); ctx.close();}catch(e){} }, dur*1000); }
+    else if(kind==='boop'){ const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.25); o.connect(g).connect(master); o.start(); setTimeout(()=>{ o.stop(); ctx.close(); },300); }
+    else if(kind==='bell'){ const o1=ctx.createOscillator(), o2=ctx.createOscillator(), g=ctx.createGain(); o1.type='sine'; o2.type='sine'; o1.frequency.value=880; o2.frequency.value=1320; g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.7); o1.connect(g); o2.connect(g); g.connect(master); o1.start(); o2.start(); setTimeout(()=>{ o1.stop(); o2.stop(); ctx.close(); },800); }
+    else { const o=ctx.createOscillator(), g=ctx.createGain(); o.type='square'; o.frequency.value=220; const lfo=ctx.createOscillator(), lg=ctx.createGain(); lfo.type='sine'; lfo.frequency.value=6; lg.gain.value=40; lfo.connect(lg).connect(o.frequency); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.6); o.connect(g).connect(master); o.start(); lfo.start(); setTimeout(()=>{ o.stop(); lfo.stop(); ctx.close(); },650); }
+  }catch(e){ alert('Time\'s up!'); } }
+})();</script>
+</body>
+</html>
